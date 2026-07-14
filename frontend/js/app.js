@@ -13,15 +13,17 @@ function ServerSetup({ onSave }) {
         setError('');
         const url = `http://${ip.trim()}:${port.trim()}`;
         setTesting(true);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
         try {
-            const res = await fetch(`${url}/api/settings/inspectors`, { signal: AbortSignal.timeout(5000) });
+            const res = await fetch(`${url}/api/settings/inspectors`, { signal: controller.signal });
+            clearTimeout(timeout);
             if (!res.ok) throw new Error('Response not OK');
-            setTesting(false);
             localStorage.setItem('qc_api_url', url);
             onSave(url);
-        } catch {
+        } catch (e) {
             setTesting(false);
-            setError('Tidak dapat terhubung ke server. Periksa IP dan Port.');
+            setError('Gagal: ' + (e.message || e.name || 'unknown error'));
         }
     };
 
