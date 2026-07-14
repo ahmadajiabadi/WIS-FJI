@@ -1,5 +1,32 @@
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyv806fA_vR4Y8SST78_l6i1r_UvWn40mG0-q9mK1jZ0L-J0/exec";
 
+// Override fetch to use Capacitor native HTTP on Android (bypass WebView restrictions)
+(function() {
+    const __origFetch = window.fetch.bind(window);
+    try {
+        const cap = window.Capacitor;
+        if (cap && cap.isNativePlatform && cap.isNativePlatform() && cap.Plugins && cap.Plugins.CapacitorHttp) {
+            const http = cap.Plugins.CapacitorHttp;
+            window.fetch = async function(input, init) {
+                try {
+                    const url = typeof input === 'string' ? input : input.url;
+                    const method = ((init && init.method) || 'GET').toUpperCase();
+                    const headers = (init && init.headers) || {};
+                    const data = (init && init.body) || undefined;
+                    const res = await http.request({ url, method, headers, data });
+                    const body = typeof res.data === 'object' ? JSON.stringify(res.data) : String(res.data || '');
+                    return new Response(body, {
+                        status: res.status || 200,
+                        headers: new Headers(res.headers || {}),
+                    });
+                } catch (e) {
+                    return __origFetch(input, init);
+                }
+            };
+        }
+    } catch (e) { /* silently fall through to original fetch */ }
+})();
+
 const { useState, useEffect } = React;
 
 function ServerSetup({ onSave }) {
@@ -13,17 +40,21 @@ function ServerSetup({ onSave }) {
         setError('');
         const url = `http://${ip.trim()}:${port.trim()}`;
         setTesting(true);
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
+        let timedOut = false;
+        const timer = setTimeout(() => { timedOut = true; }, 5000);
         try {
-            const res = await fetch(`${url}/api/settings/inspectors`, { signal: controller.signal });
-            clearTimeout(timeout);
-            if (!res.ok) throw new Error('Response not OK');
+            const res = await fetch(`${url}/api/settings/inspectors`);
+            clearTimeout(timer);
+            if (timedOut) return;
+            if (!res.ok) throw new Error('HTTP ' + res.status);
             localStorage.setItem('qc_api_url', url);
+            setTesting(false);
             onSave(url);
         } catch (e) {
+            clearTimeout(timer);
+            if (timedOut) return;
             setTesting(false);
-            setError('Gagal: ' + (e.message || e.name || 'unknown error'));
+            setError('Gagal: ' + (e.message || e.name || 'unknown'));
         }
     };
 
