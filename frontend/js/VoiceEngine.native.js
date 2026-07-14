@@ -4,8 +4,6 @@ window.VoiceRecognitionNative = (function() {
     let soundGen = 0;
     let pendingRestart = null;
     let listeners = [];
-
-    // Stub callbacks for compatibility with VoiceTab.js
     let zombieCallbacks = [];
 
     function removeAllListeners() {
@@ -25,15 +23,11 @@ window.VoiceRecognitionNative = (function() {
 
     function attachAndStart(gen, config) {
         if (gen !== soundGen || !userWantsListening) return;
-
         var sr = getSpeechRecognition();
         if (!sr) { stop(); return; }
-
         removeAllListeners();
-
         var configRef = config;
 
-        // Listen for partial results — treat as final transcript
         var partialHandler = function(event) {
             if (gen !== soundGen || !userWantsListening) return;
             var text = (event.matches && event.matches[0]) || '';
@@ -43,7 +37,6 @@ window.VoiceRecognitionNative = (function() {
         };
         sr.addListener('partialResults', partialHandler).then(function(l) { listeners.push(l); });
 
-        // Listen for listening state changes
         var stateHandler = function(event) {
             if (gen !== soundGen || !userWantsListening) return;
             var state = event.state || '';
@@ -51,7 +44,6 @@ window.VoiceRecognitionNative = (function() {
                 if (configRef && configRef.onStatusChange) configRef.onStatusChange('listening');
             } else if (state === 'stopped' || event.status === 'stopped') {
                 if (configRef && configRef.onStatusChange) configRef.onStatusChange('idle');
-                // Auto-restart for continuous mode
                 if (userWantsListening && gen === soundGen) {
                     scheduleRestart(gen, configRef);
                 }
@@ -59,24 +51,20 @@ window.VoiceRecognitionNative = (function() {
         };
         sr.addListener('listeningState', stateHandler).then(function(l) { listeners.push(l); });
 
-        // Listen for errors
         var errorHandler = function(event) {
             if (gen !== soundGen) return;
             if (configRef && configRef.onStatusChange) configRef.onStatusChange('error');
-
             if (event.code === 'notAllowed') {
                 userWantsListening = false;
                 if (configRef && configRef.onStatusChange) configRef.onStatusChange('idle');
                 return;
             }
-
             if (userWantsListening && gen === soundGen && configRef) {
                 scheduleRestart(gen, configRef);
             }
         };
         sr.addListener('error', errorHandler).then(function(l) { listeners.push(l); });
 
-        // Ready for next session
         var readyHandler = function() {
             if (gen !== soundGen || !userWantsListening) return;
             scheduleRestart(gen, configRef);
@@ -106,6 +94,20 @@ window.VoiceRecognitionNative = (function() {
         }, 100);
     }
 
+    function ensureMicPermission() {
+        // Use standard Web API to request mic permission first
+        // This reliably triggers the Android permission dialog
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            return Promise.resolve(false);
+        }
+        return navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+            stream.getTracks().forEach(function(t) { t.stop(); });
+            return true;
+        }).catch(function() {
+            return false;
+        });
+    }
+
     function start(config) {
         activeConfig = config;
         if (userWantsListening) return;
@@ -116,25 +118,34 @@ window.VoiceRecognitionNative = (function() {
         var sr = getSpeechRecognition();
         if (!sr) { stop(); return; }
 
-        // Check & request permissions if needed
-        sr.checkPermissions().then(function(result) {
+        // 1) Get mic permission via getUserMedia (reliable across all Android devices)
+        ensureMicPermission().then(function(granted) {
             if (gen !== soundGen) return;
-            if (result.speechRecognition !== 'granted') {
-                sr.requestPermissions().then(function(permResult) {
-                    if (gen !== soundGen) return;
-                    if (permResult.speechRecognition !== 'granted') {
-                        if (config && config.onStatusChange) config.onStatusChange('error');
-                        userWantsListening = false;
-                        return;
-                    }
-                    attachAndStart(gen, config);
-                });
-            } else {
-                attachAndStart(gen, config);
+            if (!granted) {
+                if (config && config.onStatusChange) config.onStatusChange('error');
+                userWantsListening = false;
+                return;
             }
-        }).catch(function() {
-            // Fallback: try to start anyway
-            if (gen === soundGen) attachAndStart(gen, config);
+
+            // 2) Now use native SpeechRecognizer
+            sr.checkPermissions().then(function(result) {
+                if (gen !== soundGen) return;
+                if (result.speechRecognition !== 'granted') {
+                    sr.requestPermissions().then(function(permResult) {
+                        if (gen !== soundGen) return;
+                        if (permResult.speechRecognition !== 'granted') {
+                            if (config && config.onStatusChange) config.onStatusChange('error');
+                            userWantsListening = false;
+                            return;
+                        }
+                        attachAndStart(gen, config);
+                    });
+                } else {
+                    attachAndStart(gen, config);
+                }
+            }).catch(function() {
+                if (gen === soundGen) attachAndStart(gen, config);
+            });
         });
     }
 
@@ -165,7 +176,6 @@ window.VoiceRecognitionNative = (function() {
         setDevice: function() {},
         get isListening() { return userWantsListening; },
 
-        // Stub for VoiceTab.js compatibility
         onZombie: function(cb) { zombieCallbacks.push(cb); },
         clearZombieCallbacks: function() { zombieCallbacks = []; },
         setZombieStatusCallback: function() {},
