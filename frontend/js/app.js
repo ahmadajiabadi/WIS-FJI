@@ -1,9 +1,83 @@
-const API_URL = 'http://192.168.15.65:3001';
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyv806fA_vR4Y8SST78_l6i1r_UvWn40mG0-q9mK1jZ0L-J0/exec";
 
 const { useState, useEffect } = React;
 
+function ServerSetup({ onSave }) {
+    const [ip, setIp] = useState('');
+    const [port, setPort] = useState('3001');
+    const [error, setError] = useState('');
+    const [testing, setTesting] = useState(false);
+
+    const handleConnect = async () => {
+        if (!ip.trim()) { setError('IP Address tidak boleh kosong'); return; }
+        setError('');
+        const url = `http://${ip.trim()}:${port.trim()}`;
+        setTesting(true);
+        try {
+            const res = await fetch(`${url}/api/settings/inspectors`, { signal: AbortSignal.timeout(5000) });
+            if (!res.ok) throw new Error('Response not OK');
+            setTesting(false);
+            localStorage.setItem('qc_api_url', url);
+            onSave(url);
+        } catch {
+            setTesting(false);
+            setError('Tidak dapat terhubung ke server. Periksa IP dan Port.');
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl shadow-xl border border-slate-200 p-8 w-full max-w-md">
+                <div className="flex justify-center mb-6">
+                    <div className="w-16 h-16 bg-white border border-slate-200 rounded-2xl flex items-center justify-center shadow-lg">
+                        <img src="logo.png" className="w-full h-full object-contain p-2" alt="Logo" />
+                    </div>
+                </div>
+                <h1 className="text-2xl font-black text-slate-800 text-center mb-1">WIS <span className="text-blue-600">FJI</span></h1>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest text-center mb-6">Welding Inspection System</p>
+                <p className="text-sm text-slate-500 text-center mb-6">Masukkan alamat server untuk terhubung</p>
+
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">IP Address</label>
+                        <input
+                            type="text"
+                            value={ip}
+                            onChange={e => setIp(e.target.value)}
+                            placeholder="192.168.15.65"
+                            className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">Port</label>
+                        <input
+                            type="text"
+                            value={port}
+                            onChange={e => setPort(e.target.value)}
+                            placeholder="3001"
+                            className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                    </div>
+
+                    {error && (
+                        <p className="text-xs text-red-500 font-medium text-center">{error}</p>
+                    )}
+
+                    <button
+                        onClick={handleConnect}
+                        disabled={testing}
+                        className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-bold rounded-xl transition-colors"
+                    >
+                        {testing ? 'Menghubungkan...' : 'Hubungkan'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function App() {
+    const [apiUrl, setApiUrl] = useState(() => localStorage.getItem('qc_api_url') || '');
     const [currentUser, setCurrentUser] = useState(() => {
         try {
             const stored = localStorage.getItem('qc_user');
@@ -33,22 +107,23 @@ function App() {
 
     // Load voice guides & commands & abnormality categories from server on mount
     useEffect(() => {
+        if (!apiUrl) return;
         if (window.loadVoiceGuidesFromServer) {
-            window.loadVoiceGuidesFromServer(API_URL);
+            window.loadVoiceGuidesFromServer(apiUrl);
         }
         if (window.loadVoiceCommandsFromServer) {
-            window.loadVoiceCommandsFromServer(API_URL);
+            window.loadVoiceCommandsFromServer(apiUrl);
         }
         if (window.loadAbnormalityCategories) {
-            window.loadAbnormalityCategories(API_URL);
+            window.loadAbnormalityCategories(apiUrl);
         }
         if (window.loadInspectorNames) {
-            window.loadInspectorNames(API_URL);
+            window.loadInspectorNames(apiUrl);
         }
         if (window.loadLinePositions) {
-            window.loadLinePositions(API_URL);
+            window.loadLinePositions(apiUrl);
         }
-    }, []);
+    }, [apiUrl]);
 
     // Guard: redirect to first allowed tab if current tab is not permitted
     useEffect(() => {
@@ -81,9 +156,13 @@ function App() {
         }
     };
 
+    if (!apiUrl) {
+        return <ServerSetup onSave={setApiUrl} />;
+    }
+
     // If not logged in, show login page
     if (!currentUser) {
-        return <window.LoginPage api_url={API_URL} onLogin={(user) => {
+        return <window.LoginPage api_url={apiUrl} onLogin={(user) => {
             setCurrentUser(user);
             const firstAllowed = user.permissions?.[0] || 'scan';
             setActiveTab(firstAllowed);
@@ -129,7 +208,7 @@ function App() {
                 <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
                     {activeTab === 'scan' && userPerms.includes('scan') && (
                         <window.ScanTab 
-                            api_url={API_URL}
+                            api_url={apiUrl}
                             script_url={SCRIPT_URL}
                             initialScanResult={selectedRecord}
                             isViewingDbRecord={isViewingDbRecord}
@@ -147,14 +226,14 @@ function App() {
 
                     {activeTab === 'voice' && userPerms.includes('voice') && (
                         <window.VoiceTab 
-                            api_url={API_URL}
+                            api_url={apiUrl}
                             onSaveSuccess={handleSaveSuccess}
                         />
                     )}
 
                     {activeTab === 'database' && userPerms.includes('database') && (
                         <window.DatabaseTab 
-                            api_url={API_URL}
+                            api_url={apiUrl}
                             onOpenRecord={handleOpenRecord}
                             currentUser={currentUser}
                         />
@@ -162,50 +241,50 @@ function App() {
 
                     {activeTab === 'dashboard' && userPerms.includes('dashboard') && (
                         <window.DashboardTab 
-                            api_url={API_URL}
+                            api_url={apiUrl}
                         />
                     )}
 
                     {activeTab === 'live-monitoring' && userPerms.includes('live-monitoring') && (
                         <window.LiveMonitoringTab 
-                            api_url={API_URL}
+                            api_url={apiUrl}
                             currentUser={currentUser}
                         />
                     )}
 
                     {activeTab === 'asakai' && userPerms.includes('asakai') && (
                         <window.AsakaiTab 
-                            api_url={API_URL}
+                            api_url={apiUrl}
                         />
                     )}
 
                     {activeTab === 'linestop' && userPerms.includes('linestop') && (
                         <window.LineStopTab 
-                            api_url={API_URL}
+                            api_url={apiUrl}
                         />
                     )}
 
                     {activeTab === 'master' && userPerms.includes('master') && (
                         <window.MasterDataTab 
-                            api_url={API_URL}
+                            api_url={apiUrl}
                         />
                     )}
 
                     {activeTab === 'ppic' && userPerms.includes('ppic') && (
                         <window.PpicTab 
-                            api_url={API_URL}
+                            api_url={apiUrl}
                         />
                     )}
 
                     {activeTab === 'settings' && userPerms.includes('settings') && (
                         <window.SettingsTab 
-                            api_url={API_URL}
+                            api_url={apiUrl}
                         />
                     )}
 
                     {activeTab === 'users' && userPerms.includes('users') && (
                         <window.UsersTab 
-                            api_url={API_URL}
+                            api_url={apiUrl}
                         />
                     )}
                 </main>
@@ -229,7 +308,7 @@ function App() {
                 <window.PartAnalyticsModal 
                     part={viewingAnalyticsPart}
                     onClose={() => setViewingAnalyticsPart(null)}
-                    api_url={API_URL}
+                    api_url={apiUrl}
                 />
             )}
         </div>
