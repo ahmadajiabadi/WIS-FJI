@@ -310,6 +310,8 @@ function VoiceTab({ api_url, onSaveSuccess }) {
     const abnormalCategoryRef = React.useRef(null);
     const [showAbnormalSuccess, setShowAbnormalSuccess] = React.useState(false);
     const [showSaveConfirm, setShowSaveConfirm] = React.useState(false);
+    const [showDiagnostic, setShowDiagnostic] = React.useState(false);
+    const [diagnosticMessage, setDiagnosticMessage] = React.useState('');
 
     const metadataRef = React.useRef(metadata);
     const selectedPartRef = React.useRef(null);
@@ -1944,6 +1946,10 @@ function VoiceTab({ api_url, onSaveSuccess }) {
                     isListeningRef.current = false;
                     setStatus('idle');
                 }
+            },
+            onDiagnostic: (msg) => {
+                setDiagnosticMessage(msg);
+                setShowDiagnostic(true);
             }
         });
     };
@@ -3258,6 +3264,31 @@ function VoiceTab({ api_url, onSaveSuccess }) {
             )}
 
             {/* ABNORMALITY POPUP */}
+            {/* DIAGNOSTIC POPUP */}
+            {showDiagnostic && (
+                <div className="fixed inset-0 z-[10000] !mt-0 flex items-center justify-center bg-black/70 backdrop-blur-xl" onClick={() => { setShowDiagnostic(false); }}>
+                    <div className="bg-white rounded-[3rem] w-full max-w-lg mx-4 overflow-hidden shadow-2xl border border-blue-200 animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+                        <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-6 text-center">
+                            <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-2">
+                                <i className="fas fa-microphone-slash text-3xl text-white"></i>
+                            </div>
+                            <h2 className="text-xl font-black text-white uppercase tracking-wide">Mic Tidak Aktif</h2>
+                        </div>
+                        <div className="p-6 max-h-[50vh] overflow-y-auto custom-scrollbar">
+                            <p className="text-sm font-bold text-slate-700 leading-relaxed whitespace-pre-line">{diagnosticMessage}</p>
+                        </div>
+                        <div className="p-4 border-t border-slate-100 flex justify-center gap-3">
+                            <button
+                                onClick={() => { setShowDiagnostic(false); }}
+                                className="text-[10px] font-black text-slate-400 hover:text-slate-700 uppercase tracking-wider transition-colors"
+                            >
+                                Tutup
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showAbnormalPopup && (
                 <div className="fixed inset-0 z-[10000] !mt-0 flex items-center justify-center bg-black/70 backdrop-blur-xl" onClick={() => { setShowAbnormalPopup(false); setAbnormalCategory(null); }}>
                     <div className="bg-white rounded-[3rem] w-full max-w-lg mx-4 overflow-hidden shadow-2xl border border-red-200 animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>

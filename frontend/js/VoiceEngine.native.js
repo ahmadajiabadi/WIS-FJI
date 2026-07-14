@@ -21,7 +21,7 @@ window.VoiceRecognitionNative = (function() {
         }
     }
 
-    function attachAndStart(gen, config) {
+    function attachAndStart(gen, config, useOnDevice) {
         if (gen !== soundGen || !userWantsListening) return;
         var sr = getSpeechRecognition();
         if (!sr) { stop(); return; }
@@ -45,7 +45,7 @@ window.VoiceRecognitionNative = (function() {
             } else if (state === 'stopped' || event.status === 'stopped') {
                 if (configRef && configRef.onStatusChange) configRef.onStatusChange('idle');
                 if (userWantsListening && gen === soundGen) {
-                    scheduleRestart(gen, configRef);
+                    scheduleRestart(gen, configRef, useOnDevice);
                 }
             }
         };
@@ -60,23 +60,23 @@ window.VoiceRecognitionNative = (function() {
                 return;
             }
             if (userWantsListening && gen === soundGen && configRef) {
-                scheduleRestart(gen, configRef);
+                scheduleRestart(gen, configRef, useOnDevice);
             }
         };
         sr.addListener('error', errorHandler).then(function(l) { listeners.push(l); });
 
         var readyHandler = function() {
             if (gen !== soundGen || !userWantsListening) return;
-            scheduleRestart(gen, configRef);
+            scheduleRestart(gen, configRef, useOnDevice);
         };
         sr.addListener('readyForNextSession', readyHandler).then(function(l) { listeners.push(l); });
 
-        // Start the native recognizer
         sr.start({
             language: 'id-ID',
             maxResults: 1,
             partialResults: true,
             popup: false,
+            useOnDeviceRecognition: !!useOnDevice,
         }).catch(function(err) {
             if (gen === soundGen && configRef && configRef.onStatusChange) {
                 configRef.onStatusChange('error');
@@ -84,19 +84,17 @@ window.VoiceRecognitionNative = (function() {
         });
     }
 
-    function scheduleRestart(gen, config) {
+    function scheduleRestart(gen, config, useOnDevice) {
         if (pendingRestart) clearTimeout(pendingRestart);
         pendingRestart = setTimeout(function() {
             pendingRestart = null;
             if (gen === soundGen && userWantsListening && config) {
-                attachAndStart(gen, config);
+                attachAndStart(gen, config, useOnDevice);
             }
         }, 100);
     }
 
     function ensureMicPermission() {
-        // Use standard Web API to request mic permission first
-        // This reliably triggers the Android permission dialog
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             return Promise.resolve(false);
         }
@@ -118,7 +116,7 @@ window.VoiceRecognitionNative = (function() {
         var sr = getSpeechRecognition();
         if (!sr) { stop(); return; }
 
-        // 1) Get mic permission via getUserMedia (reliable across all Android devices)
+        // First: get mic permission via getUserMedia
         ensureMicPermission().then(function(granted) {
             if (gen !== soundGen) return;
             if (!granted) {
@@ -127,24 +125,23 @@ window.VoiceRecognitionNative = (function() {
                 return;
             }
 
-            // 2) Now use native SpeechRecognizer
-            sr.checkPermissions().then(function(result) {
+            // Check if speech recognition is available
+            sr.available().then(function(availResult) {
                 if (gen !== soundGen) return;
-                if (result.speechRecognition !== 'granted') {
-                    sr.requestPermissions().then(function(permResult) {
-                        if (gen !== soundGen) return;
-                        if (permResult.speechRecognition !== 'granted') {
-                            if (config && config.onStatusChange) config.onStatusChange('error');
-                            userWantsListening = false;
-                            return;
-                        }
-                        attachAndStart(gen, config);
-                    });
-                } else {
-                    attachAndStart(gen, config);
+                if (!availResult.available) {
+                    if (config && config.onDiagnostic) {
+                        config.onDiagnostic('Speech Recognition tidak tersedia di device ini. Install Google Speech Services dari Play Store, atau gunakan mode Rekam.');
+                    }
+                    if (config && config.onStatusChange) config.onStatusChange('error');
+                    userWantsListening = false;
+                    return;
                 }
+
+                // Try on-device recognition first (Android 13+, no Google Services needed)
+                attachAndStart(gen, config, true);
             }).catch(function() {
-                if (gen === soundGen) attachAndStart(gen, config);
+                // Fallback: try anyway
+                if (gen === soundGen) attachAndStart(gen, config, false);
             });
         });
     }

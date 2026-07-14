@@ -130,7 +130,11 @@ window.VoiceRecognition = (function() {
         const gen = ++recognizerGen;
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
-            alert("Maaf, browser Anda tidak mendukung Speech Recognition. Gunakan Google Chrome!");
+            if (config.onDiagnostic) {
+                config.onDiagnostic('Browser/WebView ini tidak memiliki Speech Recognition API (webkitSpeechRecognition).\n\nUntuk mengecek ketersediaan:\n1. Buka Chrome, buka halaman ini\n2. Ketik di console: !!window.webkitSpeechRecognition\n3. Jika hasilnya true, berarti tersedia. Jika false/undefined, tidak tersedia.\n\nSaran:\n- Gunakan Google Chrome (bukan WebView APK)\n- Buka halaman via HTTPS, bukan HTTP\n- Install Google via Play Store');
+            } else {
+                alert("Maaf, browser Anda tidak mendukung Speech Recognition. Gunakan Google Chrome!");
+            }
             return;
         }
 
