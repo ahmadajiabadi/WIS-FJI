@@ -1,4 +1,4 @@
-const API_URL = `http://${window.location.hostname || 'localhost'}:3000`;
+const API_URL = 'http://192.168.15.65:3001';
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyv806fA_vR4Y8SST78_l6i1r_UvWn40mG0-q9mK1jZ0L-J0/exec";
 
 const { useState, useEffect } = React;
