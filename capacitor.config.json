@@ -1,0 +1,5 @@
+{
+  "appId": "com.qcscanner.app",
+  "appName": "QCScanner",
+  "webDir": "./frontend"
+}

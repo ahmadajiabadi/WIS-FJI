@@ -1,0 +1,38 @@
+# Env files (sensitive keys)
+.env
+backend/.env
+
+# Node
+node_modules/
+backend/node_modules/
+
+# Backend runtime
+backend/uploads/
+backend/scratch/
+backend/UPLOAD DATA BULANAN/
+
+# Frontend generated
+frontend/dist/bundle.js
+
+# Data & assets
+data/
+qcc_assets/
+*.pptx
+
+# Android generated
+android/.gradle/
+android/build/
+android/local.properties
+android/capacitor-cordova-android-plugins/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/app/src/main/res/xml/config.xml
+
+# Android Studio
+*.iml
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

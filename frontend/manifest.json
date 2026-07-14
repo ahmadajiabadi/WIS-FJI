@@ -1,0 +1,17 @@
+{
+  "name": "Digital QC Scanner CS",
+  "short_name": "QC Scanner",
+  "description": "Industrial Grade QC Check Sheet Scanner",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/1087/1087927.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
